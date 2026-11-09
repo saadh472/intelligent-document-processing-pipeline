@@ -145,14 +145,8 @@ export const documentService = {
   },
 
   getAllDocuments: async (): Promise<Document[]> => {
-    try {
-      const response = await api.get<Document[]>('/documents');
-      return response.data || [];
-    } catch (error: any) {
-      console.error('Error fetching documents:', error);
-      // Return empty array instead of throwing to keep app functional
-      return [];
-    }
+    const response = await api.get<Document[]>('/documents', { timeout: 5000 });
+    return response.data;
   },
 
   getDocumentById: async (id: string): Promise<Document> => {

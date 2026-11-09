@@ -22,7 +22,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.legal.documentprocessing.composite.DocumentComposite;
 import com.legal.documentprocessing.model.Document;
+import com.legal.documentprocessing.model.DocumentSummary;
 import com.legal.documentprocessing.service.DocumentService;
+import com.legal.documentprocessing.service.DocumentService.UnsupportedDocumentTypeException;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -52,7 +55,9 @@ public class DocumentController {
             Document document = documentService.uploadDocument(file);
             logger.info("Document uploaded successfully: {} with status: {}",
                 document.getId(), document.getStatus());
-            return ResponseEntity.status(HttpStatus.CREATED).body(document);
+            return ResponseEntity.status(HttpStatus.CREATED).body(DocumentSummary.from(document));
+        } catch (UnsupportedDocumentTypeException e) {
+            return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of("message", e.getMessage()));
         } catch (org.springframework.web.multipart.MaxUploadSizeExceededException e) {
             logger.error("File size exceeds maximum allowed size: {}", file.getOriginalFilename(), e);
             Map<String, String> error = new HashMap<>();
@@ -73,22 +78,22 @@ public class DocumentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Document>> getAllDocuments() {
+    public ResponseEntity<List<DocumentSummary>> getAllDocuments() {
         return ResponseEntity.ok(documentService.getAllDocuments());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Document> getDocumentById(@PathVariable @NonNull String id) {
+    public ResponseEntity<DocumentDetail> getDocumentById(@PathVariable @NonNull String id) {
         try {
             Document document = documentService.getDocumentById(id);
-            return ResponseEntity.ok(document);
+            return ResponseEntity.ok(DocumentDetail.from(document));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<Document>> getDocumentsByStatus(@PathVariable String status) {
+    public ResponseEntity<List<DocumentSummary>> getDocumentsByStatus(@PathVariable String status) {
         try {
             Document.DocumentStatus docStatus = Document.DocumentStatus.valueOf(status.toUpperCase());
             return ResponseEntity.ok(documentService.getDocumentsByStatus(docStatus));
@@ -98,7 +103,7 @@ public class DocumentController {
     }
 
     @GetMapping("/category/{category}")
-    public ResponseEntity<List<Document>> getDocumentsByCategory(@PathVariable String category) {
+    public ResponseEntity<List<DocumentSummary>> getDocumentsByCategory(@PathVariable String category) {
         try {
             Document.DocumentCategory docCategory = Document.DocumentCategory.valueOf(category.toUpperCase());
             return ResponseEntity.ok(documentService.getDocumentsByCategory(docCategory));
@@ -122,7 +127,7 @@ public class DocumentController {
         try {
             logger.info("Processing document via manual trigger: {}", id);
             Document processed = documentService.processDocument(id);
-            return ResponseEntity.ok(processed);
+            return ResponseEntity.ok(DocumentDetail.from(processed));
         } catch (IllegalStateException e) {
             logger.warn("Invalid state for processing document {}: {}", id, e.getMessage());
             Map<String, String> error = new HashMap<>();
@@ -133,6 +138,12 @@ public class DocumentController {
             Map<String, String> error = new HashMap<>();
             error.put("message", "Failed to process document: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    public record DocumentDetail(@JsonUnwrapped DocumentSummary summary, String contentText) {
+        private static DocumentDetail from(Document document) {
+            return new DocumentDetail(DocumentSummary.from(document), document.getContentText());
         }
     }
 }

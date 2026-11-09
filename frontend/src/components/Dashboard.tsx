@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   AppBar,
@@ -45,32 +45,45 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const requestSequence = useRef(0);
+  const refreshInFlight = useRef(false);
 
-  useEffect(() => {
-    loadDocuments();
-    const interval = setInterval(loadDocuments, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadDocuments = async (showLoading = false) => {
+  const loadDocuments = useCallback(async (showLoading = false) => {
+    if (refreshInFlight.current && !showLoading) return;
+    const request = ++requestSequence.current;
+    refreshInFlight.current = true;
     if (showLoading) {
       setRefreshing(true);
     }
-    setError(null);
 
     try {
       const docs = await documentService.getAllDocuments();
-      setDocuments(docs);
-      setError(null);
-    } catch (error: any) {
-      console.error('Error loading documents:', error);
-      const errorMessage = error.message || 'Failed to load documents. Please refresh the page.';
-      setError(errorMessage);
+      if (request === requestSequence.current) {
+        setDocuments(docs);
+        setError(null);
+      }
+    } catch {
+      if (request === requestSequence.current) {
+        setError('Could not refresh the document queue. Check that the backend is running and retry.');
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (request === requestSequence.current) {
+        refreshInFlight.current = false;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadDocuments();
+    const interval = setInterval(() => void loadDocuments(), 5000);
+    return () => {
+      clearInterval(interval);
+      requestSequence.current++;
+      refreshInFlight.current = false;
+    };
+  }, [loadDocuments]);
 
   const handleUpload = async () => {
     await loadDocuments(true);
@@ -262,8 +275,9 @@ const Dashboard: React.FC = () => {
             <Grid item xs={12}>
               <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 2 }}>
                 <PipelineVisualization
-                  documents={filteredDocuments}
+                  documents={documents}
                   onDocumentSelect={setSelectedDocument}
+                  onQueueFinished={() => loadDocuments(true)}
                 />
               </Paper>
             </Grid>

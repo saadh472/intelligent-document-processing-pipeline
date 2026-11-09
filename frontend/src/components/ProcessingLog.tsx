@@ -30,6 +30,9 @@ interface ProcessingLogProps {
 const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
   const [events, setEvents] = useState<ProcessingEvent[]>([]);
   const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'reconnecting'>('disconnected');
+  const visibleEvents = selectedDocument
+    ? events.filter(event => event.documentId === selectedDocument.id)
+    : events;
 
   useEffect(() => {
     // Connect WebSocket
@@ -45,17 +48,13 @@ const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
       setEvents((prev) => [event, ...prev].slice(0, 100)); // Keep last 100 events
     };
 
-    webSocketService.subscribeToAll(handleEvent);
-
-    // Subscribe to specific document if selected
-    if (selectedDocument?.id) {
-      webSocketService.subscribeToDocument(selectedDocument.id, handleEvent);
-    }
+    const unsubscribeFromEvents = webSocketService.subscribeToAll(handleEvent);
 
     return () => {
       unsubscribe();
+      unsubscribeFromEvents();
     };
-  }, [selectedDocument]);
+  }, []);
 
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
@@ -177,7 +176,7 @@ const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
         }}
       >
         <List dense sx={{ p: 0 }}>
-          {events.length === 0 ? (
+          {visibleEvents.length === 0 ? (
             <ListItem>
               <Box sx={{ textAlign: 'center', width: '100%', py: 4 }}>
                 <InfoIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
@@ -190,7 +189,7 @@ const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
               </Box>
             </ListItem>
           ) : (
-            events.map((event, index) => (
+            visibleEvents.map((event, index) => (
               <React.Fragment key={index}>
                 <ListItem
                   sx={{
@@ -269,17 +268,17 @@ const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
                     )}
                   </Box>
                 </ListItem>
-                {index < events.length - 1 && <Divider />}
+                {index < visibleEvents.length - 1 && <Divider />}
               </React.Fragment>
             ))
           )}
         </List>
       </Paper>
 
-      {events.length > 0 && (
+      {visibleEvents.length > 0 && (
         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="caption" color="text.secondary">
-            Showing {events.length} event{events.length !== 1 ? 's' : ''}
+            Showing {visibleEvents.length} event{visibleEvents.length !== 1 ? 's' : ''}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Auto-refreshing every 5 seconds

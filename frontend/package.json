@@ -29,6 +29,7 @@
     "postinstall": "node scripts/fix-ajv-keywords.js || echo Fix script completed",
     "start": "cross-env TSC_COMPILE_ON_ERROR=true react-app-rewired start",
     "build": "react-app-rewired build",
+    "typecheck": "tsc --noEmit",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "install-deps": "npm install --legacy-peer-deps"
@@ -57,6 +58,7 @@
     ]
   },
   "overrides": {
+    "@types/d3-dispatch": "3.0.6",
     "ajv": "^8.17.1",
     "ajv-keywords": "^5.1.0",
     "schema-utils": {

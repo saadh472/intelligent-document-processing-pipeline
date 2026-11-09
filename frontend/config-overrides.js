@@ -33,3 +33,9 @@ module.exports = function override(config, env) {
 
   return config;
 };
+
+module.exports.devServer = (createConfig) => (proxy, allowedHost) => {
+  const config = createConfig(proxy, allowedHost);
+  config.allowedHosts = ['localhost', '127.0.0.1'];
+  return config;
+};

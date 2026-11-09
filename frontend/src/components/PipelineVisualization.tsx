@@ -8,14 +8,18 @@ import { Document, DocumentStatus } from '../types/document';
 interface PipelineVisualizationProps {
   documents: Document[];
   onDocumentSelect: (doc: Document | null) => void;
+  onQueueFinished: () => Promise<void>;
 }
 
 const PipelineVisualization: React.FC<PipelineVisualizationProps> = ({
   documents,
   onDocumentSelect,
+  onQueueFinished,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const processingQueue = useRef(false);
   const [processing, setProcessing] = useState(false);
+  const [queueProgress, setQueueProgress] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -45,33 +49,39 @@ const PipelineVisualization: React.FC<PipelineVisualizationProps> = ({
   }, [documents]);
 
   const handleStartPipeline = async () => {
-    if (documentsToProcess.length === 0) {
-      setError('No documents in UPLOADED status to process');
-      return;
-    }
+    if (processingQueue.current || documentsToProcess.length === 0) return;
 
+    processingQueue.current = true;
     setProcessing(true);
     setError(null);
     setSuccess(null);
+    const failures: string[] = [];
+    let completed = 0;
 
     try {
-      // Process the first uploaded document (can be enhanced to process all)
-      const docToProcess = documentsToProcess[0];
-      await documentService.processDocument(docToProcess.id);
-      setSuccess(`Document "${docToProcess.fileName}" processing started!`);
-
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSuccess(null);
-      }, 5000);
-
-      // Trigger refresh by selecting the document (parent can handle refresh)
-      onDocumentSelect(docToProcess);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to start pipeline processing';
-      setError(errorMessage);
+      for (let index = 0; index < documentsToProcess.length; index++) {
+        const document = documentsToProcess[index];
+        setQueueProgress(`Processing ${index + 1} of ${documentsToProcess.length}`);
+        onDocumentSelect(document);
+        try {
+          const result = await documentService.processDocument(document.id);
+          if (result.status === DocumentStatus.COMPLETED) {
+            completed++;
+          } else {
+            failures.push(`${document.fileName} (${result.errorMessage || result.status})`);
+          }
+        } catch (failure) {
+          const detail = failure instanceof Error ? failure.message : 'Processing request failed';
+          failures.push(`${document.fileName} (${detail})`);
+        }
+      }
+      await onQueueFinished();
+      if (completed) setSuccess(`Completed ${completed} of ${documentsToProcess.length} documents.`);
+      if (failures.length) setError(`Could not confirm ${failures.length} document(s): ${failures.join(' • ')}`);
     } finally {
+      processingQueue.current = false;
       setProcessing(false);
+      setQueueProgress('');
     }
   };
 
@@ -192,7 +202,7 @@ const PipelineVisualization: React.FC<PipelineVisualizationProps> = ({
           Processing Pipeline
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          {documentsToProcess.length > 0 && (
+          {(processing || documentsToProcess.length > 0) && (
             <Button
               variant="contained"
               color="primary"
@@ -201,7 +211,7 @@ const PipelineVisualization: React.FC<PipelineVisualizationProps> = ({
               disabled={processing}
               sx={{ mr: 1 }}
             >
-              {processing ? 'Processing...' : `Start Pipeline (${documentsToProcess.length})`}
+              {processing ? queueProgress || 'Processing…' : `Start Pipeline (${documentsToProcess.length})`}
             </Button>
           )}
           <Chip

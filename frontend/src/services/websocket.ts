@@ -6,7 +6,7 @@ type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecti
 
 class WebSocketService {
   private stompClient: Client | null = null;
-  private subscribers: Map<string, (event: ProcessingEvent) => void> = new Map();
+  private subscribers = new Set<(event: ProcessingEvent) => void>();
   private connectionState: ConnectionState = 'disconnected';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
@@ -118,7 +118,7 @@ class WebSocketService {
         this.stompClient!.subscribe('/topic/processing', (message: Message) => {
           try {
             const event: ProcessingEvent = JSON.parse(message.body);
-            this.subscribers.get('*')?.(event);
+            this.subscribers.forEach(callback => callback(event));
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);
           }
@@ -190,44 +190,9 @@ class WebSocketService {
     this.connectionListeners.forEach(callback => callback(this.connectionState));
   }
 
-  subscribeToDocument(documentId: string, callback: (event: ProcessingEvent) => void) {
-    if (!this.stompClient || !this.stompClient.connected) {
-      this.connect();
-      // Wait for connection with retry
-      let attempts = 0;
-      const maxAttempts = 5;
-      const checkConnection = setInterval(() => {
-        attempts++;
-        if (this.stompClient && this.stompClient.connected) {
-          clearInterval(checkConnection);
-          this.subscribeToDocument(documentId, callback);
-        } else if (attempts >= maxAttempts) {
-          clearInterval(checkConnection);
-          console.error('Failed to subscribe: connection timeout');
-        }
-      }, 500);
-      return;
-    }
-
-    const topic = `/topic/processing/${documentId}`;
-    this.subscribers.set(documentId, callback);
-
-    try {
-      this.stompClient.subscribe(topic, (message: Message) => {
-        try {
-          const event: ProcessingEvent = JSON.parse(message.body);
-          callback(event);
-        } catch (error) {
-          console.error('Error parsing document event:', error);
-        }
-      });
-    } catch (error) {
-      console.error('Error subscribing to document:', error);
-    }
-  }
-
   subscribeToAll(callback: (event: ProcessingEvent) => void) {
-    this.subscribers.set('*', callback);
+    this.subscribers.add(callback);
+    return () => this.subscribers.delete(callback);
   }
 
   disconnect() {

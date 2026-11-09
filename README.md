@@ -6,7 +6,9 @@ A prototype for processing documents such as contracts, motions, and corresponde
 
 ## Quick start
 
-Install Java 17, Maven 3.9, and Node.js 24. Run the backend and frontend in separate terminals from the repository root.
+Install Java 17, Maven 3.9, and Node.js 24. On Windows, double-click [Start Pipeline.cmd](Start%20Pipeline.cmd). It builds the backend, starts both services, and opens the dashboard when it is ready. Keep the launcher window open while using the app. It writes startup logs to a temporary folder and prints that folder's path.
+
+For manual startup, run the backend and frontend in separate terminals from the repository root.
 
 **Backend**
 
@@ -38,7 +40,7 @@ The agreement records the terms and conditions for the demonstration order.
 ```
 
 1. Upload the file in **Upload Document**.
-2. Open the **Pipeline** tab and select **Start Pipeline (1)**.
+2. Select **Start Pipeline (1)** in the **Processing Pipeline** panel. If several documents are queued, the button processes that queue in order and reports the result for each file.
 3. Check the document card for `COMPLETED` and `CONTRACT`, and review the stage events in **Real-time Processing Log**.
 
 The upload control accepts PDF, DOC, DOCX, TXT, JPEG, and PNG files. The plain text example exercises the default local flow without requiring an OCR setup.
@@ -86,6 +88,8 @@ From the repository root, run the backend checks and build the frontend bundle.
 mvn -f backend/pom.xml verify
 cd frontend
 npm ci
+npm run typecheck
+npm test -- --watchAll=false --runInBand
 npm run build
 ```
 

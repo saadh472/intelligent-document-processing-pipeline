@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Chain of Responsibility: Format validation handler
@@ -19,6 +20,10 @@ public class FormatValidationHandler extends AbstractValidationHandler {
     );
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+    public static boolean isAllowedFileType(String fileType) {
+        return fileType != null && ALLOWED_TYPES.contains(fileType.toLowerCase(Locale.ROOT));
+    }
+
     @Override
     protected ValidationResult doValidate(Document document) {
         ValidationResult result = new ValidationResult();
@@ -31,8 +36,8 @@ public class FormatValidationHandler extends AbstractValidationHandler {
             return result;
         }
 
-        String fileType = document.getFileType().toLowerCase();
-        if (!ALLOWED_TYPES.contains(fileType)) {
+        String fileType = document.getFileType();
+        if (!isAllowedFileType(fileType)) {
             result.addError("File type '" + fileType + "' is not allowed. Allowed types: " + ALLOWED_TYPES);
             return result;
         }

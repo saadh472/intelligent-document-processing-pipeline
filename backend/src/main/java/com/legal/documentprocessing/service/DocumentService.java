@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -21,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.legal.documentprocessing.composite.DocumentComposite;
 import com.legal.documentprocessing.composite.DocumentStructureBuilder;
 import com.legal.documentprocessing.model.Document;
+import com.legal.documentprocessing.model.DocumentSummary;
 import com.legal.documentprocessing.model.ProcessingEvent;
 import com.legal.documentprocessing.observer.ProcessingEventNotifier;
 import com.legal.documentprocessing.pipeline.DocumentCategorizer;
@@ -29,6 +31,7 @@ import com.legal.documentprocessing.pipeline.DocumentTokenizer;
 import com.legal.documentprocessing.pipeline.DocumentValidator;
 import com.legal.documentprocessing.pipeline.PipelineOutput;
 import com.legal.documentprocessing.repository.DocumentRepository;
+import com.legal.documentprocessing.validation.FormatValidationHandler;
 
 @Service
 @SuppressWarnings("unused")
@@ -80,6 +83,9 @@ public class DocumentService {
         logger.info("Processing upload for file: {}", file.getOriginalFilename());
 
         String fileExtension = getFileExtension(file.getOriginalFilename());
+        if (!FormatValidationHandler.isAllowedFileType(fileExtension)) {
+            throw new UnsupportedDocumentTypeException(fileExtension);
+        }
 
         // Validate file size (50MB limit)
         long maxSize = 50 * 1024 * 1024; // 50MB
@@ -156,8 +162,8 @@ public class DocumentService {
         return savedDocument;
     }
 
-    public List<Document> getAllDocuments() {
-        return documentRepository.findAll();
+    public List<DocumentSummary> getAllDocuments() {
+        return documentRepository.findAllSummariesBy();
     }
 
     public Document getDocumentById(@NonNull String id) {
@@ -165,12 +171,12 @@ public class DocumentService {
                 .orElseThrow(() -> new RuntimeException("Document not found: " + id));
     }
 
-    public List<Document> getDocumentsByStatus(Document.DocumentStatus status) {
-        return documentRepository.findByStatus(status);
+    public List<DocumentSummary> getDocumentsByStatus(Document.DocumentStatus status) {
+        return documentRepository.findSummaryByStatus(status);
     }
 
-    public List<Document> getDocumentsByCategory(Document.DocumentCategory category) {
-        return documentRepository.findByCategory(category);
+    public List<DocumentSummary> getDocumentsByCategory(Document.DocumentCategory category) {
+        return documentRepository.findSummaryByCategory(category);
     }
 
     public DocumentComposite getDocumentStructure(@NonNull String id) {
@@ -215,6 +221,12 @@ public class DocumentService {
         if (filename == null || !filename.contains(".")) {
             return "unknown";
         }
-        return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+        return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase(Locale.ROOT);
+    }
+
+    public static final class UnsupportedDocumentTypeException extends IllegalArgumentException {
+        public UnsupportedDocumentTypeException(String fileType) {
+            super("Unsupported document type: " + fileType + ".");
+        }
     }
 }
