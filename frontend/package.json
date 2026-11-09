@@ -1,0 +1,75 @@
+{
+  "name": "document-processing-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.14.19",
+    "@mui/material": "^5.14.20",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0",
+    "axios": "^1.6.2",
+    "d3": "^7.8.5",
+    "d3-selection": "^3.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.2.3",
+    "react-router-dom": "^6.20.1",
+    "react-scripts": "5.0.1",
+    "sockjs-client": "^1.6.1",
+    "stompjs": "^2.3.3",
+    "typescript": "^4.9.5",
+    "web-vitals": "^3.5.0"
+  },
+  "scripts": {
+    "postinstall": "node scripts/fix-ajv-keywords.js || echo Fix script completed",
+    "start": "cross-env TSC_COMPILE_ON_ERROR=true react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "install-deps": "npm install --legacy-peer-deps"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ],
+    "rules": {},
+    "env": {
+      "browser": true,
+      "es2021": true,
+      "node": true
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "overrides": {
+    "ajv": "^8.17.1",
+    "ajv-keywords": "^5.1.0",
+    "schema-utils": {
+      "ajv": "^8.17.1",
+      "ajv-keywords": "^5.1.0"
+    }
+  },
+  "proxy": "http://localhost:8080",
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "@types/sockjs-client": "^1.5.4",
+    "cross-env": "^10.1.0",
+    "null-loader": "^4.0.1",
+    "react-app-rewired": "^2.2.1"
+  }
+}

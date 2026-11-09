@@ -1,0 +1,109 @@
+spring:
+  application:
+    name: document-processing-pipeline
+  main:
+    lazy-initialization: false  # Keep false for better error detection, but can enable for faster startup
+  jmx:
+    enabled: false  # Disable JMX for faster startup
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 51MB
+      file-size-threshold: 2KB
+
+  datasource:
+    url: jdbc:h2:mem:documentdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+
+  h2:
+    console:
+      enabled: false  # Disable H2 console for faster startup (enable manually if needed)
+      path: /h2-console
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:}
+    consumer:
+      group-id: document-processing-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.legal.documentprocessing.model"
+        # Fast fail if Kafka is not available - reduces startup time
+        socket.connection.setup.timeout.ms: 500
+        socket.connection.setup.timeout.max.ms: 1000
+        request.timeout.ms: 2000
+        connections.max.idle.ms: 3000
+        reconnect.backoff.ms: 25
+        reconnect.backoff.max.ms: 250
+        # Don't retry forever - stop after a few attempts
+        retry.backoff.ms: 50
+        # Reduce metadata fetch timeout
+        metadata.max.age.ms: 10000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        # Fast fail if Kafka is not available
+        socket.connection.setup.timeout.ms: 500
+        socket.connection.setup.timeout.max.ms: 1000
+        request.timeout.ms: 2000
+    # Don't block startup if Kafka is unavailable
+    listener:
+      missing-topics-fatal: false
+      # Don't auto-start listeners if Kafka is not available
+      auto-startup: false
+
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: 8080
+  connection-timeout: 120000
+
+document-processing:
+  kafka:
+    enabled: false
+  pipeline:
+    topics:
+      input: document-input
+      tokenized: document-tokenized
+      extracted: document-extracted
+      validated: document-validated
+      categorized: document-categorized
+      output: document-output
+  upload:
+    max-file-size: 50MB
+    allowed-types: pdf,doc,docx,txt,jpg,jpeg,png
+
+logging:
+  level:
+    com.legal.documentprocessing: INFO
+    org.springframework.kafka: ERROR
+    org.apache.kafka.clients.NetworkClient: ERROR
+    org.apache.kafka: ERROR
+    org.hibernate: ERROR  # Reduce Hibernate logging
+    org.hibernate.SQL: ERROR  # Disable SQL logging
+    org.springframework.boot: WARN  # Reduce Spring Boot startup logging
+    org.springframework.web: WARN  # Reduce web layer logging
+    org.springframework.context: WARN  # Reduce context logging
+    org.springframework.beans: ERROR  # Reduce bean creation logging
+    org.apache.tomcat: ERROR  # Reduce Tomcat logging
+    root: WARN
