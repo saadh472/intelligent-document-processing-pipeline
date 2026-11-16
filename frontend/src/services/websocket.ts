@@ -1,6 +1,7 @@
 import SockJS from 'sockjs-client';
 import { Client, Message } from 'stompjs';
 import { ProcessingEvent } from '../types/document';
+import { authService, getCsrfToken } from './api';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -14,6 +15,8 @@ class WebSocketService {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private connectionListeners: Set<(state: ConnectionState) => void> = new Set();
   private isManualDisconnect = false;
+  private connectionGeneration = 0;
+  private socket: { close(code?: number, reason?: string): void } | null = null;
 
   connect() {
     if (this.connectionState === 'connected' || this.connectionState === 'connecting') {
@@ -21,11 +24,13 @@ class WebSocketService {
     }
 
     this.isManualDisconnect = false;
+    const generation = ++this.connectionGeneration;
     this.connectionState = 'connecting';
     this.notifyConnectionState();
 
     // First check if backend is reachable
     this.checkBackendAvailability().then((available) => {
+      if (this.isManualDisconnect || generation !== this.connectionGeneration) return;
       if (!available) {
         console.warn('Backend not available, will retry connection');
         this.handleConnectionFailure();
@@ -40,30 +45,8 @@ class WebSocketService {
 
   private async checkBackendAvailability(): Promise<boolean> {
     try {
-      // Try to connect to the API endpoint with a short timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
-
-      try {
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
-        const response = await fetch(`${apiUrl}/documents`, {
-          method: 'GET',
-          mode: 'cors',
-          cache: 'no-cache',
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        // Any response (even 404 or 500) means backend is running
-        return true;
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        if (fetchError.name === 'AbortError') {
-          console.warn('Backend availability check timed out');
-        } else {
-          console.warn('Backend availability check failed:', fetchError.message);
-        }
-        return false;
-      }
+      // Session validation precedes every connection/reconnection attempt.
+      return (await authService.session()).authenticated;
     } catch (error) {
       console.warn('Backend availability check error:', error);
       return false;
@@ -71,9 +54,11 @@ class WebSocketService {
   }
 
   private attemptConnection() {
+    if (this.isManualDisconnect) return;
     try {
-      const wsUrl = process.env.REACT_APP_WS_URL || 'http://localhost:8080/ws';
+      const wsUrl = process.env.REACT_APP_WS_URL || '/ws';
       const socket = new SockJS(wsUrl);
+      this.socket = socket;
       // @ts-ignore - stompjs doesn't have proper TypeScript definitions
       const Stomp = require('stompjs');
       const client = Stomp.over(socket);
@@ -107,7 +92,7 @@ class WebSocketService {
         console.log('SockJS connection opened');
       };
 
-      this.stompClient.connect({}, () => {
+      this.stompClient.connect({ 'X-CSRF-TOKEN': getCsrfToken() }, () => {
         console.log('WebSocket connected successfully');
         this.connectionState = 'connected';
         this.reconnectAttempts = 0;
@@ -157,9 +142,11 @@ class WebSocketService {
     }
 
     this.reconnectTimer = setTimeout(() => {
+      const generation = this.connectionGeneration;
       console.log(`Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} - Checking backend availability...`);
       // Re-check backend availability before attempting connection
       this.checkBackendAvailability().then((available) => {
+        if (this.isManualDisconnect || generation !== this.connectionGeneration) return;
         if (available) {
           console.log('Backend is available, attempting WebSocket connection...');
           this.attemptConnection();
@@ -197,6 +184,7 @@ class WebSocketService {
 
   disconnect() {
     this.isManualDisconnect = true;
+    this.connectionGeneration++;
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -214,6 +202,10 @@ class WebSocketService {
         }
       }
       this.stompClient = null;
+    }
+    if (this.socket) {
+      try { this.socket.close(); } catch { /* Already closed. */ }
+      this.socket = null;
     }
 
     this.connectionState = 'disconnected';

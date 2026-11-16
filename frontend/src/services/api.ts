@@ -1,7 +1,21 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { Document } from '../types/document';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
+export interface AuthSession {
+  authenticated: boolean;
+  username?: string;
+  csrfToken: string;
+}
+
+let csrfToken = '';
+const expiryListeners = new Set<() => void>();
+export const onSessionExpired = (listener: () => void) => {
+  expiryListeners.add(listener);
+  return () => { expiryListeners.delete(listener); };
+};
+export const getCsrfToken = () => csrfToken;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,6 +23,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 120000, // 120 second timeout for large file operations
+  withCredentials: true,
 });
 
 // Retry configuration
@@ -29,6 +44,9 @@ const isRetryableError = (error: AxiosError): boolean => {
 // Add request interceptor for retry logic
 api.interceptors.request.use(
   (config) => {
+    if (!['get', 'head', 'options'].includes((config.method || 'get').toLowerCase()) && csrfToken) {
+      config.headers.set('X-CSRF-TOKEN', csrfToken);
+    }
     // Add timestamp to prevent caching (only for GET requests to avoid issues with POST/PUT)
     if (config.method === 'get' || config.method === 'GET') {
       config.params = {
@@ -55,6 +73,17 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
+    if (error.response?.status === 401 && originalRequest?.url !== '/auth/login') {
+      csrfToken = '';
+      expiryListeners.forEach(listener => listener());
+    }
+    if (error.response?.status === 403 && originalRequest?.url !== '/auth/session') {
+      // Refresh the token for the next deliberate action. Never replay the denied write.
+      try {
+        const current = await authService.session();
+        if (!current.authenticated) expiryListeners.forEach(listener => listener());
+      } catch { /* Keep the original request error for the user. */ }
+    }
 
     // Only retry reads. Retrying an upload or process request can duplicate work.
     if (originalRequest?.method?.toLowerCase() !== 'get' || originalRequest._retry || !isRetryableError(error)) {
@@ -77,6 +106,22 @@ api.interceptors.response.use(
     return api.request(originalRequest);
   }
 );
+
+const rememberSession = (session: AuthSession): AuthSession => {
+  csrfToken = session.csrfToken;
+  return session;
+};
+
+export const authService = {
+  session: async (): Promise<AuthSession> => rememberSession((await api.get<AuthSession>('/auth/session', { timeout: 10000 })).data),
+  login: async (username: string, password: string): Promise<AuthSession> => {
+    // A fresh session request is required when the previous session expired.
+    if (!csrfToken) await authService.session();
+    const response = await api.post<AuthSession>('/auth/login', { username, password }, { timeout: 15000 });
+    return rememberSession(response.data);
+  },
+  logout: async (): Promise<AuthSession> => rememberSession((await api.post<AuthSession>('/auth/logout', {}, { timeout: 10000 })).data),
+};
 
 export const documentService = {
   uploadDocument: async (file: File, onProgress?: (progress: number) => void): Promise<Document> => {

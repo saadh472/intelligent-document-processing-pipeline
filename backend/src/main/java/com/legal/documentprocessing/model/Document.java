@@ -1,6 +1,8 @@
 package com.legal.documentprocessing.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 @Entity
@@ -15,12 +17,11 @@ public class Document {
     private String mimeType;
     private Long fileSize;
 
-    @Lob
-    @Column(columnDefinition = "BLOB")
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(columnDefinition = "BYTEA")
     private byte[] content;
 
-    @Lob
-    @Column(columnDefinition = "CLOB")
+    @Column(columnDefinition = "TEXT")
     private String contentText;
 
     @Enumerated(EnumType.STRING)

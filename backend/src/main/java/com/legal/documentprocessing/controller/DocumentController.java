@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,7 +28,6 @@ import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 @RestController
 @RequestMapping("/api/documents")
-@CrossOrigin(origins = {"http://localhost:3000", "http://127.0.0.1:3000"})
 public class DocumentController {
 
     private static final Logger logger = LoggerFactory.getLogger(DocumentController.class);
@@ -50,29 +48,26 @@ public class DocumentController {
         }
 
         try {
-            logger.info("Uploading document: {} ({} bytes, Content-Type: {})",
-                file.getOriginalFilename(), file.getSize(), file.getContentType());
+            logger.info("Receiving document upload ({} bytes)", file.getSize());
             Document document = documentService.uploadDocument(file);
-            logger.info("Document uploaded successfully: {} with status: {}",
-                document.getId(), document.getStatus());
+            logger.info("Document upload saved successfully");
             return ResponseEntity.status(HttpStatus.CREATED).body(DocumentSummary.from(document));
         } catch (UnsupportedDocumentTypeException e) {
             return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(Map.of("message", e.getMessage()));
         } catch (org.springframework.web.multipart.MaxUploadSizeExceededException e) {
-            logger.error("File size exceeds maximum allowed size: {}", file.getOriginalFilename(), e);
+            logger.warn("Document upload exceeded the size limit");
             Map<String, String> error = new HashMap<>();
             error.put("message", "File size exceeds 50MB limit");
             return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
         } catch (IOException e) {
-            logger.error("IO error uploading document: {}", file.getOriginalFilename(), e);
+            logger.error("Document upload could not be read or stored");
             Map<String, String> error = new HashMap<>();
-            error.put("message", "Failed to read file: " + e.getMessage());
+            error.put("message", "The document could not be read or stored. Check the server and try again.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         } catch (Exception e) {
-            logger.error("Unexpected error uploading document: {}", file.getOriginalFilename(), e);
+            logger.error("Document upload failed unexpectedly");
             Map<String, String> error = new HashMap<>();
-            error.put("message", "Upload failed: " + e.getMessage());
-            error.put("error", e.getClass().getSimpleName());
+            error.put("message", "The upload could not be completed. Check the server and try again.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
@@ -125,18 +120,18 @@ public class DocumentController {
     @PostMapping("/{id}/process")
     public ResponseEntity<?> processDocument(@PathVariable @NonNull String id) {
         try {
-            logger.info("Processing document via manual trigger: {}", id);
+            logger.info("Manual document processing requested");
             Document processed = documentService.processDocument(id);
             return ResponseEntity.ok(DocumentDetail.from(processed));
         } catch (IllegalStateException e) {
-            logger.warn("Invalid state for processing document {}: {}", id, e.getMessage());
+            logger.warn("Document processing was requested from an unsupported state");
             Map<String, String> error = new HashMap<>();
             error.put("message", e.getMessage());
             return ResponseEntity.badRequest().body(error);
         } catch (RuntimeException e) {
-            logger.error("Error processing document: {}", id, e);
+            logger.error("Manual document processing failed");
             Map<String, String> error = new HashMap<>();
-            error.put("message", "Failed to process document: " + e.getMessage());
+            error.put("message", "The document could not be processed. Check its status before trying again.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }

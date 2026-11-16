@@ -21,27 +21,15 @@ public class LoggingObserver implements ProcessingObserver {
 
     @Override
     public void update(ProcessingEvent event) {
-        String logMessage = String.format(
-            "[%s] Document: %s | Stage: %s | Progress: %d%% | %s",
-            event.getEventType(),
-            event.getDocumentId(),
-            event.getStage() != null ? event.getStage() : "N/A",
-            event.getProgressPercentage(),
-            event.getMessage()
-        );
-
         switch (event.getEventType()) {
             case "ERROR":
-                logger.error(logMessage);
-                if (event.getErrorMessage() != null) {
-                    logger.error("Error details: " + event.getErrorMessage());
-                }
+                logger.error("Document processing reported an error");
                 break;
             case "COMPLETED":
-                logger.info(logMessage);
+                logger.info("Document processing completed");
                 break;
             default:
-                logger.debug(logMessage);
+                logger.debug("Document processing progress: {}%", Math.max(0, Math.min(100, event.getProgressPercentage())));
                 break;
         }
     }

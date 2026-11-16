@@ -114,7 +114,15 @@ try {
         '-jar', $jar, '--server.address=127.0.0.1', "--server.port=$BackendPort", '--document-processing.kafka.enabled=false'
     ) -RedirectStandardOutput (Join-Path $logs 'backend.log') -RedirectStandardError (Join-Path $logs 'backend.err.log') -WindowStyle Hidden -PassThru
     Write-Host 'Waiting for the API...'
-    Wait-Ready 'Backend' "$backendUrl/api/documents" $backendProcess 120
+    Wait-Ready 'Backend' "$backendUrl/api/health" $backendProcess 180
+
+    if ([string]::IsNullOrWhiteSpace($env:IDP_PASSWORD)) {
+        $dataDirectory = if ($env:IDP_DATA_DIR) { $env:IDP_DATA_DIR } else { Join-Path $backend 'data' }
+        if (![IO.Path]::IsPathRooted($dataDirectory)) { $dataDirectory = Join-Path $backend $dataDirectory }
+        Write-Host ('Sign in as {0}. Read the generated password in: {1}' -f $(if ($env:IDP_USERNAME) { $env:IDP_USERNAME } else { 'admin' }), (Join-Path $dataDirectory 'bootstrap-password.txt'))
+    } else {
+        Write-Host ('Sign in as {0} using the configured IDP_PASSWORD.' -f $(if ($env:IDP_USERNAME) { $env:IDP_USERNAME } else { 'admin' }))
+    }
 
     $env:HOST = '127.0.0.1'
     $env:PORT = "$frontendPort"
@@ -128,7 +136,7 @@ try {
     Wait-Ready 'Frontend' $frontendUrl $frontendProcess 180
 
     Write-Host "Dashboard: $frontendUrl"
-    Write-Host "API:       $backendUrl/api/documents"
+    Write-Host "API health: $backendUrl/api/health"
     if (!$NoBrowser -and !$CheckOnly) { Start-Process $frontendUrl }
     if ($CheckOnly) { return }
 

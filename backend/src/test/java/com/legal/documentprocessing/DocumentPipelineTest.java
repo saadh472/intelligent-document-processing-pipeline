@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -21,9 +22,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:pipeline-tests;DB_CLOSE_DELAY=-1",
+        "idp.auth.password=TestWorkspacePassword!123"
+})
 @AutoConfigureMockMvc
+@WithMockUser(username = "admin", roles = "WORKSPACE")
 class DocumentPipelineTest {
 
     @Autowired
@@ -61,7 +67,7 @@ class DocumentPipelineTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "unsupported.zip", "application/zip", new byte[] {1, 2, 3});
 
-        mvc.perform(multipart("/api/documents/upload").file(file))
+        mvc.perform(multipart("/api/documents/upload").file(file).with(csrf()))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.message").value(containsString("zip")));
 
@@ -71,7 +77,7 @@ class DocumentPipelineTest {
     }
 
     private void assertContractCompletes(MockMultipartFile file) throws Exception {
-        String upload = mvc.perform(multipart("/api/documents/upload").file(file))
+        String upload = mvc.perform(multipart("/api/documents/upload").file(file).with(csrf()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.status").value("UPLOADED"))
@@ -79,7 +85,7 @@ class DocumentPipelineTest {
                 .andReturn().getResponse().getContentAsString();
         String id = objectMapper.readTree(upload).get("id").asText();
 
-        mvc.perform(post("/api/documents/{id}/process", id))
+        mvc.perform(post("/api/documents/{id}/process", id).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.category").value("CONTRACT"))

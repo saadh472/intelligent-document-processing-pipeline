@@ -53,6 +53,7 @@ const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
     return () => {
       unsubscribe();
       unsubscribeFromEvents();
+      webSocketService.disconnect();
     };
   }, []);
 
@@ -140,7 +141,7 @@ const ProcessingLog: React.FC<ProcessingLogProps> = ({ selectedDocument }) => {
             WebSocket Disconnected
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Real-time updates unavailable. Make sure the backend is running on http://localhost:8080
+            Live updates are unavailable. Your document queue still refreshes automatically.
           </Typography>
         </Alert>
       )}

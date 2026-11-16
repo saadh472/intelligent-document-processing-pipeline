@@ -80,7 +80,7 @@ public class DocumentService {
     }
 
     public Document uploadDocument(MultipartFile file) throws IOException {
-        logger.info("Processing upload for file: {}", file.getOriginalFilename());
+        logger.info("Validating a document upload");
 
         String fileExtension = getFileExtension(file.getOriginalFilename());
         if (!FormatValidationHandler.isAllowedFileType(fileExtension)) {
@@ -109,9 +109,9 @@ public class DocumentService {
             @SuppressWarnings("null")
             Document saved = documentRepository.save(document);
             savedDocument = saved;
-            logger.info("Document saved to database: {}", savedDocument.getId());
+            logger.info("Document saved to the database");
         } catch (Exception e) {
-            logger.error("Failed to save document to database", e);
+            logger.error("Document database write failed");
             throw new IOException("Failed to save document: " + e.getMessage(), e);
         }
 
@@ -125,7 +125,7 @@ public class DocumentService {
                 "Upload"
             ));
         } catch (Exception e) {
-            logger.warn("Failed to notify observers", e);
+            logger.warn("Document observers could not be notified");
             // Don't fail upload if notification fails
         }
 
@@ -145,14 +145,14 @@ public class DocumentService {
 
                 future.whenComplete((result, ex) -> {
                     if (ex == null) {
-                        logger.info("Document sent to Kafka: {}", documentId);
+                        logger.info("Document notification sent to Kafka");
                     } else {
-                        logger.warn("Failed to send document to Kafka: {}", documentId, ex);
+                        logger.warn("Kafka document notification could not be sent");
                         // Don't fail upload if Kafka is unavailable
                     }
                 });
             } catch (Exception e) {
-                logger.warn("Kafka send failed (continuing anyway): {}", e.getMessage(), e);
+                logger.warn("Kafka notification failed; local document processing remains available");
                 // Don't fail upload if Kafka is unavailable
             }
         } else {
@@ -196,7 +196,7 @@ public class DocumentService {
             throw new IllegalStateException("Document must be in UPLOADED status to start processing. Current status: " + document.getStatus());
         }
 
-        logger.info("Starting manual pipeline processing for document: {}", id);
+        logger.info("Starting manual pipeline processing");
 
         try {
             // Process through the pipeline chain (Tokenizer -> Extractor -> Validator -> Categorizer -> Output)
@@ -205,11 +205,11 @@ public class DocumentService {
             // Save the processed document
             @SuppressWarnings("null")
             Document saved = documentRepository.save(processed);
-            logger.info("Pipeline processing completed for document: {} with status: {}", id, saved.getStatus());
+            logger.info("Manual pipeline processing completed");
 
             return saved;
         } catch (Exception e) {
-            logger.error("Error processing document: {}", id, e);
+            logger.error("Manual pipeline processing failed");
             document.setStatus(Document.DocumentStatus.ERROR);
             document.setErrorMessage("Processing failed: " + e.getMessage());
             documentRepository.save(document);

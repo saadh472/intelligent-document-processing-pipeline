@@ -3,6 +3,14 @@ services:
     build: ./backend
     ports:
       - "127.0.0.1:8080:8080"
+    environment:
+      IDP_DATA_DIR: /app/data
+      IDP_USERNAME: ${IDP_USERNAME:-admin}
+      IDP_PASSWORD: ${IDP_PASSWORD:-}
+      IDP_ALLOWED_ORIGINS: ${IDP_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+    volumes:
+      - pipeline-data:/app/data
 
   frontend:
     build: ./frontend
@@ -10,3 +18,6 @@ services:
       - "127.0.0.1:3000:80"
     depends_on:
       - backend
+
+volumes:
+  pipeline-data:

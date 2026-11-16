@@ -2,6 +2,11 @@
 .env.*
 !.env.example
 application-local.yml
+backend/data/
+data/
+bootstrap-password.txt
+database-password.txt
+cookies.txt
 
 target/
 node_modules/

@@ -29,6 +29,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { useWorkspaceAuth } from './AuthWorkspace';
 import UploadArea from './UploadArea';
 import PipelineVisualization from './PipelineVisualization';
 import DocumentQueue from './DocumentQueue';
@@ -39,6 +41,7 @@ import { Document, DocumentStatus } from '../types/document';
 const drawerWidth = 280;
 
 const Dashboard: React.FC = () => {
+  const { username, signOut, signingOut, signOutError } = useWorkspaceAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -145,16 +148,22 @@ const Dashboard: React.FC = () => {
             color="inherit"
             onClick={() => loadDocuments(true)}
             disabled={refreshing}
+            aria-label="Refresh documents"
             sx={{ mr: 1 }}
           >
             <RefreshIcon />
           </IconButton>
+          <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', md: 'block' } }}>{username}</Typography>
+          <Button color="inherit" startIcon={<LogoutIcon />} disabled={signingOut} onClick={() => void signOut()} sx={{ flexShrink: 0 }}>
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </Button>
         </Toolbar>
       </AppBar>
       <Drawer
         variant="permanent"
         sx={{
-          width: drawerWidth,
+          width: { xs: 0, md: drawerWidth },
+          display: { xs: 'none', md: 'block' },
           flexShrink: 0,
           '& .MuiDrawer-paper': {
             width: drawerWidth,
@@ -242,12 +251,17 @@ const Dashboard: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           bgcolor: 'background.default',
-          p: 3,
+          p: { xs: 1.5, sm: 3 },
         }}
       >
         <Toolbar />
         <Container maxWidth="xl">
+          {signOutError && <Alert severity="error" sx={{ mb: 3 }}>{signOutError}</Alert>}
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1, flexWrap: 'wrap', mb: 2 }} aria-label="Document filters">
+            {menuItems.map(item => <Chip key={item.id} label={`${item.label} (${item.count})`} color={selectedStatus === item.id ? 'primary' : 'default'} onClick={() => handleStatusSelect(item.id)} />)}
+          </Box>
           {error && (
             <Alert
               severity="warning"
